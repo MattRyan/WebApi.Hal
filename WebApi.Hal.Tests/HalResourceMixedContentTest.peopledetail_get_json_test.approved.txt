@@ -10,7 +10,7 @@
     }
   },
   "_embedded": {
-    "person": [
+    "people": [
       {
         "Id": 3,
         "Name": "Dilbert",

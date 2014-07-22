@@ -33,28 +33,52 @@ namespace WebApi.Hal
             if (ResourceConverter.IsResourceConverterContext(context))
             {
                 // put all embedded resources and lists of resources into Embedded for the _embedded serializer
-                var resourceList = new List<IResource>();
+                var resourceList = new List<Tuple<string, IResource>>();
                 foreach (var prop in GetType().GetProperties().Where(p => IsEmbeddedResourceType(p.PropertyType)))
                 {
                     var val = prop.GetValue(this, null);
+
                     if (val != null)
                     {
+                        var jsonPropertyAttribute = prop.GetCustomAttribute<JsonPropertyAttribute>();
                         // remember embedded resource property for restoring after serialization
                         embeddedResourceProperties.Add(prop, val);
                         // add embedded resource to collection for the serializtion
-                        var res = val as IResource;
-                        if (res != null)
-                            resourceList.Add(res);
+                        var resources = val as IEnumerable<IResource>;
+                        if (resources != null)
+                        {
+                            resourceList.AddRange(from resource in resources
+                                                  let rel = GetRel(jsonPropertyAttribute, resource)
+                                                  select new Tuple<string, IResource>(rel, resource));
+                        }
                         else
-                            resourceList.AddRange((IEnumerable<IResource>) val);
+                        {
+                            var resource = (IResource) val;
+                            var rel = GetRel(jsonPropertyAttribute, resource);
+                            resourceList.Add(new Tuple<string, IResource>(rel, resource));
+                        }
                         // null out the embedded property so it doesn't serialize separately as a property
                         prop.SetValue(this, null, null);
                     }
                 }
-                foreach (var res in resourceList.Where(r => string.IsNullOrEmpty(r.Rel)))
-                    res.Rel = "unknownRel-" + res.GetType().Name;
-                Embedded = resourceList.Count > 0 ? resourceList.ToLookup(r => r.Rel) : null;
+                Embedded = resourceList.Count > 0
+                               ? resourceList.ToLookup(r => r.Item1, r => r.Item2)
+                               : null;
             }
+        }
+
+        public static string GetRel(JsonPropertyAttribute jsonPropertyAttribute, 
+                                    IResource resource)
+        {
+            if (jsonPropertyAttribute != null)
+            {
+                return jsonPropertyAttribute.PropertyName;
+            }
+            if (string.IsNullOrEmpty(resource.Rel))
+            {
+                return "unknownRel-" + resource.GetType().Name;
+            }
+            return resource.Rel;
         }
 
         [OnSerialized]
