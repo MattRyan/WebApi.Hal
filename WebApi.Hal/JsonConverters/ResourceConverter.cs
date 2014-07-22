@@ -85,11 +85,13 @@ namespace WebApi.Hal.JsonConverters
                     {
                         if (prop.PropertyType.GenericTypeArguments != null &&
                             prop.PropertyType.GenericTypeArguments.Length > 0)
-                            CreateEmbedded(embeddeds, prop.PropertyType.GenericTypeArguments[0],
-                                newRes => lst.Add(newRes));
+                            CreateEmbedded(embeddeds,
+                                           prop,
+                                           prop.PropertyType.GenericTypeArguments[0],
+                                           newRes => lst.Add(newRes));
                     }
                     else
-                        CreateEmbedded(embeddeds, prop.PropertyType, newRes => prop.SetValue(resource, newRes));
+                        CreateEmbedded(embeddeds, prop, prop.PropertyType, newRes => prop.SetValue(resource, newRes));
                 }
             }
 
@@ -116,9 +118,9 @@ namespace WebApi.Hal.JsonConverters
             }
         }
 
-        static void CreateEmbedded(JToken embeddeds, Type resourceType, Action<IResource> addCreatedResource)
+        static void CreateEmbedded(JToken embeddeds, MemberInfo prop, Type resourceType, Action<IResource> addCreatedResource)
         {
-            var rel = GetResourceTypeRel(resourceType);
+            var rel = GetRel(prop, resourceType);
             if (!string.IsNullOrEmpty(rel))
             {
                 var tok = embeddeds[rel];
@@ -146,6 +148,14 @@ namespace WebApi.Hal.JsonConverters
                     }
                 }
             }
+        }
+
+        static string GetRel(MemberInfo prop, Type resourceType)
+        {
+            var jsonPropertyAttribute = prop.GetCustomAttribute<JsonPropertyAttribute>();
+            return jsonPropertyAttribute != null
+                       ? jsonPropertyAttribute.PropertyName
+                       : GetResourceTypeRel(resourceType);
         }
 
         // this depends on IResource.Rel being set upon construction
